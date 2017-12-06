@@ -16,9 +16,6 @@
 # Reference (A lot of fields are not exactly as the doc says)
 # https://developer.apple.com/library/mac/documentation/Darwin/Reference/ManPages/man5/audit.log.5.html
 
-# MSc Project in Royal Holloway, University of London. 
-__author__ = 'Joaquin Moreno Garijo (bastionado@gmail.com)'
-
 # README:
 # The goal of this tools is only for developing purposes.
 # The full documented and well implemented version is going to be in PLASO:
@@ -36,11 +33,7 @@ import construct
 import datetime
 import os
 import socket
-import struct
 import sys
-import time
-
-##### CONSTANT #####
 
 # BSM supported version (0x0b = 11)
 AUDIT_HEADER_VERSION = 11
@@ -55,86 +48,171 @@ AU_IPv6 = 16
 # Arbitrary tokens.
 # Type of data to print in a BSM_TOKEN_DATA.
 BSM_TOKEN_DATA_TYPE = {
-0: u'AUR_CHAR',
-1: u'AUR_SHORT',
-2: u'AUR_INT32'}
+    0: u'AUR_CHAR',
+    1: u'AUR_SHORT',
+    2: u'AUR_INT32'}
 
 BSM_TOKEN_DATA_PRINT = {
-0: u'Binary',
-1: u'Octal',
-2: u'Decimal',
-3: u'Hexadecimal',
-4: u'String'}
+    0: u'Binary',
+    1: u'Octal',
+    2: u'Decimal',
+    3: u'Hexadecimal',
+    4: u'String'}
 
 # Numeric ERRORS representation, read it in OpenBSM project: "audit_errno.h".
 # TODO: I have been checked some of them against Mac OSX and I am changing
 #       the name to be more clossed to Mac OS X and be more understandable.
 BSM_ERRORS = {
-    0: u'Success', 1: u'Operation not permitted',
+    0: u'Success',
+    1: u'Operation not permitted',
     2: u'No such file or directory',
-    3: u'No such process', 4: u'Interrupted system call',
-    5: u'Input/output error', 6: u'Device not configured',
-    7: u'Argument list too long', 8: u'Exec format error',
-    9: u'Bad file descriptor', 10: u'No child processes',
-    11: u'Resource temporarily unavailable', 12: u'Cannot allocate memory',
-    13: u'Permission denied', 14: u'Bad address',
-    15: u'Block device required', 16: u'Device busy', 17: u'File exists',
-    18: u'ross-device link', 19: u'Operation not supported by device',
-    20: u'Not a directory', 21: u'Is a directory', 22: u'Invalid argument',
+    3: u'No such process',
+    4: u'Interrupted system call',
+    5: u'Input/output error',
+    6: u'Device not configured',
+    7: u'Argument list too long',
+    8: u'Exec format error',
+    9: u'Bad file descriptor',
+    10: u'No child processes',
+    11: u'Resource temporarily unavailable',
+    12: u'Cannot allocate memory',
+    13: u'Permission denied',
+    14: u'Bad address',
+    15: u'Block device required',
+    16: u'Device busy',
+    17: u'File exists',
+    18: u'ross-device link',
+    19: u'Operation not supported by device',
+    20: u'Not a directory',
+    21: u'Is a directory',
+    22: u'Invalid argument',
     23: u'Too many open files in system',
-    24: u'Too many open files', 25: u'Inappropriate ioctl for device',
-    26: u'Text file busy', 27: u'File too large',
-    28: u'No space left on device', 29: u'Illegal seek',
-    30: u'Read-only file system', 31: u'Too many links',
-    32: u'Broken pipe', 33: u'Numerical argument out of domain',
-    34: u'Result too large', 35: u'No message of desired type',
-    36: u'Identifier removed', 45: u'Resource deadlock avoided',
-    46: u'No locks available', 47: u'Operation canceled',
-    48: u'Operation not supported', 49: u'Disc quota exceeded',
-    66: u'Too many levels of remote in path', 67: u'Link has been severed',
-    71: u'Protocol error', 74: u'Multihop attempted',
-    77: u'Bad message', 78: u'File name too long',
+    24: u'Too many open files',
+    25: u'Inappropriate ioctl for device',
+    26: u'Text file busy',
+    27: u'File too large',
+    28: u'No space left on device',
+    29: u'Illegal seek',
+    30: u'Read-only file system',
+    31: u'Too many links',
+    32: u'Broken pipe',
+    33: u'Numerical argument out of domain',
+    34: u'Result too large',
+    35: u'No message of desired type',
+    36: u'Identifier removed',
+    45: u'Resource deadlock avoided',
+    46: u'No locks available',
+    47: u'Operation canceled',
+    48: u'Operation not supported',
+    49: u'Disc quota exceeded',
+    66: u'Too many levels of remote in path',
+    67: u'Link has been severed',
+    71: u'Protocol error',
+    74: u'Multihop attempted',
+    77: u'Bad message',
+    78: u'File name too long',
     79: u'Value too large to be stored in data type',
-    88: u'Illegal byte sequence', 89: u'Function not implemented',
-    90: u'Too many levels of symbolic links', 91: u'Restart syscall',
-    93: u'Directory not empty', 94: u'Too many users',
+    88: u'Illegal byte sequence',
+    89: u'Function not implemented',
+    90: u'Too many levels of symbolic links',
+    91: u'Restart syscall',
+    93: u'Directory not empty',
+    94: u'Too many users',
     95: u'Socket operation on non-socket',
-    96: u'Destination address required', 97: u'Message too long',
+    96: u'Destination address required',
+    97: u'Message too long',
     98: u'Protocol wrong type for socket',
-    99: u'Protocol not available', 120: u'Protocol not supported',
-    121: u'Socket type not supported', 122: u'Operation not supported',
+    99: u'Protocol not available',
+    120: u'Protocol not supported',
+    121: u'Socket type not supported',
+    122: u'Operation not supported',
     123: u'Protocol family not supported',
     124: u'Address family not supported by protocol family',
-    125: u'Address already in use', 126: u'Can\'t assign requested address',
-    127: u'Network is down', 128: u'Network unreachable',
+    125: u'Address already in use',
+    126: u'Can\'t assign requested address',
+    127: u'Network is down',
+    128: u'Network unreachable',
     129: u'Network dropped connection on reset',
     130: u'Software caused connection abort',
-    131: u'Connection reset by peer', 132: u'No buffer space available',
-    133: u'Socket is already connected', 134: u'Socket is not connected',
+    131: u'Connection reset by peer',
+    132: u'No buffer space available',
+    133: u'Socket is already connected',
+    134: u'Socket is not connected',
     143: u'Can\'t send after socket shutdown',
-    144: u'Too many references: can\'t splice', 145: u'Operation timed out',
-    146: u'Connection refused', 147: u'Host is down',
-    148: u'No route to host', 149: u'Operation already in progress',
-    150: u'Operation now in progress', 151: u'Stale NFS file handle',
-    190: u'PROCLIM', 191: u'BADRPC', 192: u'RPCMISMATCH',
-    193: u'PROGUNAVAIL', 194: u'PROGMISMATCH', 195: u'PROCUNAVAIL',
-    196: u'FTYPE', 197: u'AUTH', 198: u'NEEDAUTH', 199: u'NOATTR',
-    200: u'DOOFUS', 201: u'USTRETURN', 202: u'NOIOCTL', 203: u'DIRIOCTL',
-    204: u'PWROFF', 205: u'DEVERR', 206: u'BADEXEC', 207: u'BADARCH',
-    208: u'SHLIBVERS', 209: u'BADMACHO', 210: u'POLICY'}
+    144: u'Too many references: can\'t splice',
+    145: u'Operation timed out',
+    146: u'Connection refused',
+    147: u'Host is down',
+    148: u'No route to host',
+    149: u'Operation already in progress',
+    150: u'Operation now in progress',
+    151: u'Stale NFS file handle',
+    190: u'PROCLIM',
+    191: u'BADRPC',
+    192: u'RPCMISMATCH',
+    193: u'PROGUNAVAIL',
+    194: u'PROGMISMATCH',
+    195: u'PROCUNAVAIL',
+    196: u'FTYPE',
+    197: u'AUTH',
+    198: u'NEEDAUTH',
+    199: u'NOATTR',
+    200: u'DOOFUS',
+    201: u'USTRETURN',
+    202: u'NOIOCTL',
+    203: u'DIRIOCTL',
+    204: u'PWROFF',
+    205: u'DEVERR',
+    206: u'BADEXEC',
+    207: u'BADARCH',
+    208: u'SHLIBVERS',
+    209: u'BADMACHO',
+    210: u'POLICY'
+}
 
 # Numeric PROTOCOLS representation, read in OpenBSM project: "audit_fcntl.h".
 # TODO: not checked
 BSM_PROTOCOLS = {
-    0: u'UNSPEC', 1: u'LOCAL', 2: u'INET', 3: u'IMPLINK', 4: u'PUP',
-    5: u'CHAOS', 6: u'NS', 8: u'ECMA', 9: u'DATAKIT', 10: u'CCITT',
-    11: u'SNA', 12: u'DECnet', 13: u'DLI', 14: u'LAT', 15: u'HYLINK',
-    16: u'APPLETALK', 19: u'OSI', 23: u'IPX', 24: u'ROUTE',
-    25: u'LINK', 26: u'INET6', 27: u'KEY', 500: u'NETBIOS',
-    501: u'ISO', 502: u'XTP', 503: u'COIP', 504: u'CNT', 505: u'RTIP',
-    506: u'SIP', 507: u'PIP', 508: u'ISDN', 509: u'E164',
-    510: u'NATM', 511: u'ATM', 512: u'NETGRAPH', 513: u'SLOW',
-    514: u'CLUSTER', 515: u'ARP', 516: u'BLUETOOTH'}
+    0: u'UNSPEC',
+    1: u'LOCAL',
+    2: u'INET',
+    3: u'IMPLINK',
+    4: u'PUP',
+    5: u'CHAOS',
+    6: u'NS',
+    8: u'ECMA',
+    9: u'DATAKIT',
+    10: u'CCITT',
+    11: u'SNA',
+    12: u'DECnet',
+    13: u'DLI',
+    14: u'LAT',
+    15: u'HYLINK',
+    16: u'APPLETALK',
+    19: u'OSI',
+    23: u'IPX',
+    24: u'ROUTE',
+    25: u'LINK',
+    26: u'INET6',
+    27: u'KEY',
+    500: u'NETBIOS',
+    501: u'ISO',
+    502: u'XTP',
+    503: u'COIP',
+    504: u'CNT',
+    505: u'RTIP',
+    506: u'SIP',
+    507: u'PIP',
+    508: u'ISDN',
+    509: u'E164',
+    510: u'NATM',
+    511: u'ATM',
+    512: u'NETGRAPH',
+    513: u'SLOW',
+    514: u'CLUSTER',
+    515: u'ARP',
+    516: u'BLUETOOTH'
+}
 
 # Text representation of the audit event (/etc/security/audit_event)
 # Depends on the Mac OS X version.
@@ -764,14 +842,13 @@ BSM_AUDIT_EVENT = {
     45031: u'Security Assessment'
 }
 
-
-##### STRUCTURES #####
+# STRUCTURES
 
 
 IPV4_STRUCT = construct.UBInt32('ipv4')
 
 IPV6_STRUCT = construct.Struct(
-  'ipv6', construct.UBInt64('high'), construct.UBInt64('low'))
+    'ipv6', construct.UBInt64('high'), construct.UBInt64('low'))
 
 # TODO: Implement the following tokens:
 #       au_to_ipc_perm, au_to_sock_unix
@@ -814,7 +891,7 @@ BSM_IP_TYPE_SHORT = construct.Struct(
     'bsm_ip_type_short',
     construct.UBInt32('net_type'),
     construct.IfThenElse(
-    'ip_addr', lambda ctx: ctx['net_type'] == 16,
+        'ip_addr', lambda ctx: ctx['net_type'] == 16,
         IPV6_STRUCT,
         IPV4_STRUCT))
 # Initial fields structure used by header structures.
@@ -853,7 +930,7 @@ BSM_HEADER32_EX = construct.Struct(
 
 # Token TEXT, provides extra information.
 BSM_TOKEN_TEXT = construct.PascalString(
-    'value', length_field = construct.UBInt16('length'))
+    'value', length_field=construct.UBInt16('length'))
 
 # Path of the executable.
 BSM_TOKEN_PATH = BSM_TOKEN_TEXT
@@ -862,7 +939,7 @@ BSM_TOKEN_PATH = BSM_TOKEN_TEXT
 # status: integer that identifies the status of the exit (BSM_ERRORS).
 # return: returned value from the operation.
 BSM_TOKEN_RETURN32 = construct.Struct(
-   'bsm_token_return32',
+    'bsm_token_return32',
     construct.UBInt8('status'),
     construct.UBInt32('return_value'))
 
@@ -876,8 +953,8 @@ BSM_TOKEN_RETURN64 = construct.Struct(
 # length: integer that has the number of bytes from the entry size.
 BSM_TOKEN_TRAILER = construct.Struct(
     'bsm_token_trailer',
-     construct.UBInt16('magic'),
-     construct.UBInt32('record_length'))
+    construct.UBInt16('magic'),
+    construct.UBInt32('record_length'))
 
 # A 32-bits argument.
 # num_arg: the number of the argument.
@@ -958,7 +1035,7 @@ BSM_TOKEN_FILE = construct.Struct(
     construct.UBInt32('timestamp'),
     construct.UBInt32('microsecond'),
     construct.PascalString(
-    'file_name', length_field = construct.UBInt16('length')))
+        'file_name', length_field=construct.UBInt16('length')))
 
 # au_to_subject64 // AUT_SUBJECT64:
 BSM_TOKEN_SUBJECT64 = construct.Struct(
@@ -1014,7 +1091,7 @@ BSM_TOKEN_AUT_SOCKINET32 = construct.Struct(
 #       real BSM file.
 BSM_TOKEN_AUT_SOCKINET128 = construct.Struct(
     'bsm_token_aut_sockinet128',
-     construct.UBInt16('net_type'),
+    construct.UBInt16('net_type'),
     construct.UBInt16('port_number'),
     IPV6_STRUCT)
 
@@ -1028,19 +1105,19 @@ BSM_TOKEN_AUT_SOCKINET32_EX = construct.Struct(
         'structure_addr_port',
         lambda ctx: ctx['socket_domain'] == 26,
         construct.Struct('addr_type',
-            construct.UBInt16('ip_type'),
-            construct.UBInt16('source_port'),
-            construct.UBInt64('saddr_high'),
-            construct.UBInt64('saddr_low'),
-            construct.UBInt16('destination_port'),
-            construct.UBInt64('daddr_high'),
-            construct.UBInt64('daddr_low')),
+                         construct.UBInt16('ip_type'),
+                         construct.UBInt16('source_port'),
+                         construct.UBInt64('saddr_high'),
+                         construct.UBInt64('saddr_low'),
+                         construct.UBInt16('destination_port'),
+                         construct.UBInt64('daddr_high'),
+                         construct.UBInt64('daddr_low')),
         construct.Struct('addr_type',
-            construct.UBInt16('ip_type'),
-            construct.UBInt16('source_port'),
-            construct.UBInt32('source_address'),
-            construct.UBInt16('destination_port'),
-            construct.UBInt32('destination_address'))))
+                         construct.UBInt16('ip_type'),
+                         construct.UBInt16('source_port'),
+                         construct.UBInt32('source_address'),
+                         construct.UBInt16('destination_port'),
+                         construct.UBInt32('destination_address'))))
 
 # au_to_data // au_to_data
 # how to print: BSM_TOKEN_DATA_PRINT.
@@ -1089,51 +1166,52 @@ BSM_TOKEN_EXEC_ENV = BSM_TOKEN_EXEC_ARGUMENTS
 # au_to_zonename //AUT_ZONENAME
 BSM_TOKEN_ZONENAME = BSM_TOKEN_TEXT
 
-#### TOKEN ID ####
+# TOKEN ID
 # Only the checked structures are been added to the valid structures lists.
 BSM_TYPE_LIST = {
-      17: ['BSM_TOKEN_FILE', BSM_TOKEN_FILE],
-      19: ['BSM_TOKEN_TRAILER', BSM_TOKEN_TRAILER],
-      20: ['BSM_HEADER32', BSM_HEADER32],
-      21: ['BSM_HEADER64', BSM_HEADER64],
-      33: ['BSM_TOKEN_DATA', BSM_TOKEN_DATA],
-      34: ['BSM_TOKEN_IPC', BSM_TOKEN_IPC],
-      35: ['BSM_TOKEN_PATH', BSM_TOKEN_PATH],
-      36: ['BSM_TOKEN_SUBJECT32', BSM_TOKEN_SUBJECT32],
-      38: ['BSM_TOKEN_PROCESS32', BSM_TOKEN_PROCESS32],
-      39: ['BSM_TOKEN_RETURN32', BSM_TOKEN_RETURN32],
-      40: ['BSM_TOKEN_TEXT', BSM_TOKEN_TEXT],
-      41: ['BSM_TOKEN_OPAQUE', BSM_TOKEN_OPAQUE],
-      42: ['BSM_TOKEN_ADDR', BSM_TOKEN_ADDR],
-      43: ['BSM_TOKEN_IP', BSM_TOKEN_IP],
-      44: ['BSM_TOKEN_PORT', BSM_TOKEN_PORT],
-      45: ['BSM_TOKEN_ARGUMENT32', BSM_TOKEN_ARGUMENT32],
-      47: ['BSM_TOKEN_SEQUENCE', BSM_TOKEN_SEQUENCE],
-      49: ['BSM_TOKEN_ATTR32', BSM_TOKEN_ATTR32],
-      52: ['BSM_TOKEN_GROUPS', BSM_TOKEN_GROUPS],
-      59: ['BSM_TOKEN_GROUPS', BSM_TOKEN_GROUPS],
-      60: ['BSM_TOKEN_EXEC_ARGUMENTS', BSM_TOKEN_EXEC_ARGUMENTS],
-      61: ['BSM_TOKEN_EXEC_ENV', BSM_TOKEN_EXEC_ENV],
-      62: ['BSM_TOKEN_ATTR32', BSM_TOKEN_ATTR32],
-      82: ['BSM_TOKEN_EXIT', BSM_TOKEN_EXIT],
-      96: ['BSM_TOKEN_ZONENAME', BSM_TOKEN_ZONENAME],
-      113: ['BSM_TOKEN_ARGUMENT64', BSM_TOKEN_ARGUMENT64],
-      114: ['BSM_TOKEN_RETURN64', BSM_TOKEN_RETURN64],
-      115: ['BSM_TOKEN_ATTR64', BSM_TOKEN_ATTR64],
-      116: ['BSM_HEADER32_EX', BSM_HEADER32_EX],
-      117: ['BSM_TOKEN_SUBJECT64', BSM_TOKEN_SUBJECT64],
-      119: ['BSM_TOKEN_PROCESS64', BSM_TOKEN_PROCESS64],
-      122: ['BSM_TOKEN_SUBJECT32_EX', BSM_TOKEN_SUBJECT32_EX],
-      123: ['BSM_TOKEN_PROCESS32_EX', BSM_TOKEN_PROCESS32_EX],
-      124: ['BSM_TOKEN_PROCESS64_EX', BSM_TOKEN_PROCESS64_EX],
-      125: ['BSM_TOKEN_SUBJECT64_EX', BSM_TOKEN_SUBJECT64_EX],
-      126: ['BSM_TOKEN_ADDR_EXT', BSM_TOKEN_ADDR_EXT],
-      127: ['BSM_TOKEN_AUT_SOCKINET32_EX', BSM_TOKEN_AUT_SOCKINET32_EX],
-      128: ['BSM_TOKEN_AUT_SOCKINET32', BSM_TOKEN_AUT_SOCKINET32],
-      129: ['BSM_TOKEN_AUT_SOCKINET128', BSM_TOKEN_AUT_SOCKINET128]}
+    17: ['BSM_TOKEN_FILE', BSM_TOKEN_FILE],
+    19: ['BSM_TOKEN_TRAILER', BSM_TOKEN_TRAILER],
+    20: ['BSM_HEADER32', BSM_HEADER32],
+    21: ['BSM_HEADER64', BSM_HEADER64],
+    33: ['BSM_TOKEN_DATA', BSM_TOKEN_DATA],
+    34: ['BSM_TOKEN_IPC', BSM_TOKEN_IPC],
+    35: ['BSM_TOKEN_PATH', BSM_TOKEN_PATH],
+    36: ['BSM_TOKEN_SUBJECT32', BSM_TOKEN_SUBJECT32],
+    38: ['BSM_TOKEN_PROCESS32', BSM_TOKEN_PROCESS32],
+    39: ['BSM_TOKEN_RETURN32', BSM_TOKEN_RETURN32],
+    40: ['BSM_TOKEN_TEXT', BSM_TOKEN_TEXT],
+    41: ['BSM_TOKEN_OPAQUE', BSM_TOKEN_OPAQUE],
+    42: ['BSM_TOKEN_ADDR', BSM_TOKEN_ADDR],
+    43: ['BSM_TOKEN_IP', BSM_TOKEN_IP],
+    44: ['BSM_TOKEN_PORT', BSM_TOKEN_PORT],
+    45: ['BSM_TOKEN_ARGUMENT32', BSM_TOKEN_ARGUMENT32],
+    47: ['BSM_TOKEN_SEQUENCE', BSM_TOKEN_SEQUENCE],
+    49: ['BSM_TOKEN_ATTR32', BSM_TOKEN_ATTR32],
+    52: ['BSM_TOKEN_GROUPS', BSM_TOKEN_GROUPS],
+    59: ['BSM_TOKEN_GROUPS', BSM_TOKEN_GROUPS],
+    60: ['BSM_TOKEN_EXEC_ARGUMENTS', BSM_TOKEN_EXEC_ARGUMENTS],
+    61: ['BSM_TOKEN_EXEC_ENV', BSM_TOKEN_EXEC_ENV],
+    62: ['BSM_TOKEN_ATTR32', BSM_TOKEN_ATTR32],
+    82: ['BSM_TOKEN_EXIT', BSM_TOKEN_EXIT],
+    96: ['BSM_TOKEN_ZONENAME', BSM_TOKEN_ZONENAME],
+    113: ['BSM_TOKEN_ARGUMENT64', BSM_TOKEN_ARGUMENT64],
+    114: ['BSM_TOKEN_RETURN64', BSM_TOKEN_RETURN64],
+    115: ['BSM_TOKEN_ATTR64', BSM_TOKEN_ATTR64],
+    116: ['BSM_HEADER32_EX', BSM_HEADER32_EX],
+    117: ['BSM_TOKEN_SUBJECT64', BSM_TOKEN_SUBJECT64],
+    119: ['BSM_TOKEN_PROCESS64', BSM_TOKEN_PROCESS64],
+    122: ['BSM_TOKEN_SUBJECT32_EX', BSM_TOKEN_SUBJECT32_EX],
+    123: ['BSM_TOKEN_PROCESS32_EX', BSM_TOKEN_PROCESS32_EX],
+    124: ['BSM_TOKEN_PROCESS64_EX', BSM_TOKEN_PROCESS64_EX],
+    125: ['BSM_TOKEN_SUBJECT64_EX', BSM_TOKEN_SUBJECT64_EX],
+    126: ['BSM_TOKEN_ADDR_EXT', BSM_TOKEN_ADDR_EXT],
+    127: ['BSM_TOKEN_AUT_SOCKINET32_EX', BSM_TOKEN_AUT_SOCKINET32_EX],
+    128: ['BSM_TOKEN_AUT_SOCKINET32', BSM_TOKEN_AUT_SOCKINET32],
+    129: ['BSM_TOKEN_AUT_SOCKINET128', BSM_TOKEN_AUT_SOCKINET128]}
 
-#### FUNCTIONS ####
-  
+
+# FUNCTIONS
+
 # Formating a Token to be printed.
 #
 # Args:
@@ -1143,347 +1221,289 @@ BSM_TYPE_LIST = {
 #
 # Return:
 #   A list with a well formated Token.
-def FormatToken(token_id, token, f):
-  if token_id not in BSM_TYPE_LIST:
-    return u'Type unknown: {0} (0x{1:X})'.format(token_id, token_id)
-  bsm_type, _ = BSM_TYPE_LIST.get(token_id, ['', ''])
-  if bsm_type == 'BSM_TOKEN_TEXT':
-    return u'[{}: {}]'.format(bsm_type, _RawToUTF8(token))
-  elif bsm_type == 'BSM_TOKEN_PATH':
-    return u'[{}: {}]'.format(bsm_type, _RawToUTF8(token))
-  elif (bsm_type == 'BSM_TOKEN_RETURN32' or
-      bsm_type == 'BSM_TOKEN_RETURN64' or
-      bsm_type == 'BSM_TOKEN_EXIT'):
-    return u'[{}: {} ({}), System call status: {}]'.format(
-        bsm_type, BSM_ERRORS.get(token.status, 'Unknown'),
-        token.status, token.return_value)
-  elif (bsm_type == 'BSM_TOKEN_SUBJECT32' or
-      bsm_type == 'BSM_TOKEN_SUBJECT64'):
-    return (u'[{}: aid({}), euid({}), egid({}), uid({}), gid({}), '
-            u'pid({}), session_id({}), terminal_port({}), '
-            u'terminal_ip({})]'.format(
+def formattoken(token_id, token, f):
+    if token_id not in BSM_TYPE_LIST:
+        return u'Type unknown: {0} (0x{1:X})'.format(token_id, token_id)
+    bsm_type, _ = BSM_TYPE_LIST.get(token_id, ['', ''])
+    if bsm_type == 'BSM_TOKEN_TEXT' or bsm_type == 'BSM_TOKEN_PATH' or bsm_type == 'BSM_TOKEN_ZONENAME':
+        return u'[{}: {}]'.format(bsm_type, _rawtoutf8(token))
+    elif bsm_type == 'BSM_TOKEN_RETURN32' or bsm_type == 'BSM_TOKEN_RETURN64' or bsm_type == 'BSM_TOKEN_EXIT':
+        return u'[{}: {} ({}), System call status: {}]'.format(
+            bsm_type, BSM_ERRORS.get(token.status, 'Unknown'),
+            token.status, token.return_value)
+    elif bsm_type == 'BSM_TOKEN_SUBJECT32' or bsm_type == 'BSM_TOKEN_SUBJECT64' or bsm_type == 'BSM_TOKEN_PROCESS32' \
+            or bsm_type == 'BSM_TOKEN_PROCESS64':
+
+        return (u'[{}: aid({}), euid({}), egid({}), uid({}), gid({}), '
+                u'pid({}), session_id({}), terminal_port({}), '
+                u'terminal_ip({})]'.format(bsm_type, token.subject_data.audit_uid, token.subject_data.effective_uid,
+                                           token.subject_data.effective_gid, token.subject_data.real_uid,
+                                           token.subject_data.real_gid, token.subject_data.pid,
+                                           token.subject_data.session_id, token.terminal_port, _ipv4format(token.ipv4)))
+
+    elif bsm_type == 'BSM_TOKEN_SUBJECT32_EX' or bsm_type == 'BSM_TOKEN_SUBJECT64_EX' \
+            or bsm_type == 'BSM_TOKEN_PROCESS32_EX' or bsm_type == 'BSM_TOKEN_PROCESS64_EX':
+        if token.bsm_ip_type_short.net_type == AU_IPv6:
+            ip = _ipv6format(
+                token.bsm_ip_type_short.ip_addr.high,
+                token.bsm_ip_type_short.ip_addr.low)
+        elif token.bsm_ip_type_short.net_type == AU_IPv4:
+            ip = _ipv4format(token.bsm_ip_type_short.ip_addr)
+        else:
+            ip = 'unknown'
+        return (u'[{}: aid({}), euid({}), egid({}), uid({}), gid({}), '
+                u'pid({}), session_id({}), terminal_port({}), '
+                u'terminal_ip({})]'.format(bsm_type, token.subject_data.audit_uid, token.subject_data.effective_uid,
+                                           token.subject_data.effective_gid, token.subject_data.real_uid,
+                                           token.subject_data.real_gid, token.subject_data.pid,
+                                           token.subject_data.session_id, token.terminal_port, ip))
+    elif bsm_type == 'BSM_TOKEN_ARGUMENT32' or bsm_type == 'BSM_TOKEN_ARGUMENT64':
+        return u'[{}: {}({}) is 0x{:X}]'.format(
+            bsm_type, _rawtoutf8(token.value),
+            token.num_arg, token.name_arg)
+    elif bsm_type == 'BSM_TOKEN_EXEC_ARGUMENTS' or bsm_type == 'BSM_TOKEN_EXEC_ENV':
+        arguments = []
+        for _ in range(token):
+            arguments.append(
+                _rawtoutf8(BSM_TOKEN_EXEC_ARGUMENT.parse_stream(
+                    f)))
+        return u'[{}: {}]'.format(bsm_type, u' '.join(arguments))
+    elif bsm_type == 'BSM_TOKEN_AUT_SOCKINET32':
+        return (u'[{0}: {1} ({2}) open in port {3}. Address {4}]'.format(
+            bsm_type,
+            BSM_PROTOCOLS.get(token.net_type, 'UNKNOWN'),
+            token.net_type, token.port_number,
+            _ipv4format(token.ipv4)))
+    elif bsm_type == 'BSM_TOKEN_AUT_SOCKINET128':
+        return u'[{0}: {1} ({2}) open in port {3}. Address {4}]'.format(
+            bsm_type,
+            BSM_PROTOCOLS.get(token.net_type, 'UNKNOWN'),
+            token.net_type, token.port_number,
+            _ipv6format(token.ipv6.high, token.ipv6.low))
+    elif bsm_type == 'BSM_TOKEN_ADDR':
+        return u'[{}: {}]'.format(bsm_type, _ipv4format(token))
+    elif bsm_type == 'BSM_TOKEN_IP':
+        return u'[IPv4_Header: 0x{}]'.format(token.encode('hex'))
+    elif bsm_type == 'BSM_TOKEN_ADDR_EXT':
+        return u'[{0}: {1} ({2}). Address {3}]'.format(
+            bsm_type,
+            BSM_PROTOCOLS.get(token.net_type, 'UNKNOWN'),
+            token.net_type, _ipv6format(token.ipv6.high, token.ipv6.low))
+    elif bsm_type == 'BSM_TOKEN_PORT' or bsm_type == 'BSM_TOKEN_SEQUENCE':
+        return u'[{}: {}]'.format(bsm_type, token)
+    elif bsm_type == 'BSM_TOKEN_TRAILER':
+        return u'[{}: {}]'.format(bsm_type, token.record_length)
+    elif bsm_type == 'BSM_TOKEN_FILE':
+        timestamp = token.timestamp
+        # TODO: Add microsecond...
+        # token.microsecond
+        human_timestamp = datetime.datetime.fromtimestamp(
+            timestamp).strftime('%Y-%m-%d %H:%M:%S')
+        return u'[{0}: {1}, timestamp: {2}]'.format(
+            bsm_type, _rawtoutf8(token.file_name), human_timestamp)
+    elif bsm_type == 'BSM_TOKEN_IPC':
+        return u'[{}: object type {}, object id {}]'.format(
+            bsm_type, token.object_type, token.object_id)
+    elif bsm_type == 'BSM_TOKEN_DATA':
+        data = []
+        data_type = BSM_TOKEN_DATA_TYPE.get(token.data_type, '')
+        if data_type == 'AUR_CHAR':
+            for _ in range(token.unit_count):
+                data.append(BSM_TOKEN_DATA_CHAR.parse_stream(f))
+        elif data_type == 'AUR_SHORT':
+            for _ in range(token.unit_count):
+                data.append(BSM_TOKEN_DATA_SHORT.parse_stream(f))
+        elif data_type == 'AUR_INT32':
+            for _ in range(token.unit_count):
+                data.append(BSM_TOKEN_DATA_INTEGER.parse_stream(f))
+        else:
+            data.append(u'Unknown type data')
+        # TODO: the data when it is string ends with ".", HW a space is return
+        #       after uses the UTF-8 conversion.
+        return u'[{}: Format data: {}, Data: {}]'.format(
+            bsm_type,
+            BSM_TOKEN_DATA_PRINT[token.how_to_print],
+            _rawtoutf8(u''.join(data)))
+    elif bsm_type == 'BSM_TOKEN_ATTR32' or bsm_type == 'BSM_TOKEN_ATTR64':
+        return (u'[{0}: Mode: {1}, UID: {2}, GID: {3}, '
+                u'File system ID: {4}, Node ID: {5}, Device: {6}]'.format(bsm_type, token.file_mode, token.uid,
+                                                                          token.gid, token.file_system_id,
+                                                                          token.file_system_node_id, token.device))
+    elif bsm_type == 'BSM_TOKEN_GROUPS':
+        arguments = []
+        for _ in range(token):
+            arguments.append(
+                _rawtoutf8(BSM_TOKEN_DATA_INTEGER.parse_stream(
+                    f)))
+        return u'[{}: {}]'.format(bsm_type, u','.join(arguments))
+    elif bsm_type == 'BSM_TOKEN_AUT_SOCKINET32_EX':
+        if BSM_PROTOCOLS.get(token.socket_domain, '') == 'INET6':
+            sadd = _ipv6format(
+                token.structure_addr_port.saddr_high,
+                token.structure_addr_port.saddr_low)
+            dadd = _ipv6format(
+                token.structure_addr_port.daddr_high,
+                token.structure_addr_port.daddr_low)
+            return u'[{}: from {} port {} to {} port {}]'.format(
+                bsm_type, sadd, token.structure_addr_port.source_port,
+                dadd, token.structure_addr_port.destination_port)
+        else:
+            return u'[{}: from {} port {} to {} port {}]'.format(
                 bsm_type,
-                token.subject_data.audit_uid,
-                token.subject_data.effective_uid,
-                token.subject_data.effective_gid,
-                token.subject_data.real_uid,
-                token.subject_data.real_gid,
-                token.subject_data.pid,
-                token.subject_data.session_id,
-                token.terminal_port,
-                _IPv4Format(token.ipv4)))
-  elif (bsm_type == 'BSM_TOKEN_SUBJECT32_EX' or
-      bsm_type == 'BSM_TOKEN_SUBJECT64_EX'):
-    if token.bsm_ip_type_short.net_type == AU_IPv6:
-      ip = _IPv6Format(
-          token.bsm_ip_type_short.ip_addr.high,
-          token.bsm_ip_type_short.ip_addr.low)
-    elif token.bsm_ip_type_short.net_type == AU_IPv4:
-      ip = _IPv4Format(token.bsm_ip_type_short.ip_addr)
-    else:
-      ip = 'unknown'
-    return (u'[{}: aid({}), euid({}), egid({}), uid({}), gid({}), '
-            u'pid({}), session_id({}), terminal_port({}), '
-            u'terminal_ip({})]'.format(
-                bsm_type,
-                token.subject_data.audit_uid,
-                token.subject_data.effective_uid,
-                token.subject_data.effective_gid,
-                token.subject_data.real_uid,
-                token.subject_data.real_gid,
-                token.subject_data.pid,
-                token.subject_data.session_id,
-                token.terminal_port, ip))
-  elif (bsm_type == 'BSM_TOKEN_ARGUMENT32' or
-      bsm_type == 'BSM_TOKEN_ARGUMENT64'):
-    return u'[{}: {}({}) is 0x{:X}]'.format(
-        bsm_type, _RawToUTF8(token.value),
-        token.num_arg, token.name_arg)
-  elif (bsm_type == 'BSM_TOKEN_EXEC_ARGUMENTS' or
-      bsm_type == 'BSM_TOKEN_EXEC_ENV'):
-    arguments = []
-    for _ in range(token):
-      arguments.append(
-          _RawToUTF8(BSM_TOKEN_EXEC_ARGUMENT.parse_stream(
-              f)))
-    return u'[{}: {}]'.format(bsm_type, u' '.join(arguments))
-  elif (bsm_type == 'BSM_TOKEN_ZONENAME'):
-    return u'[{}: {}]'.format(bsm_type, _RawToUTF8(token))
-  elif bsm_type == 'BSM_TOKEN_AUT_SOCKINET32':
-    return (u'[{0}: {1} ({2}) open in port {3}. Address {4}]'.format(
-                bsm_type,
-                BSM_PROTOCOLS.get(token.net_type, 'UNKNOWN'),
-                token.net_type, token.port_number,
-                _IPv4Format(token.ipv4)))
-  elif bsm_type == 'BSM_TOKEN_AUT_SOCKINET128':
-    return u'[{0}: {1} ({2}) open in port {3}. Address {4}]'.format(
-        bsm_type,
-        BSM_PROTOCOLS.get(token.net_type, 'UNKNOWN'),
-        token.net_type, token.port_number,
-        _Ipv6Format(token.ipv6.high, token.ipv6.low))
-  elif bsm_type == 'BSM_TOKEN_ADDR':
-    return u'[{}: {}]'.format(bsm_type, _IPv4Format(token))
-  elif bsm_type == 'BSM_TOKEN_IP':
-    return u'[IPv4_Header: 0x{}]'.format(token.encode('hex'))
-  elif bsm_type == 'BSM_TOKEN_ADDR_EXT':
-    return u'[{0}: {1} ({2}). Address {3}]'.format(
-        bsm_type,
-        BSM_PROTOCOLS.get(token.net_type, 'UNKNOWN'),
-        token.net_type, _Ipv6Format(token.ipv6.high, token.ipv6.low))
-  elif bsm_type == 'BSM_TOKEN_PORT':
-    return u'[{}: {}]'.format(bsm_type, token)
-  elif bsm_type == 'BSM_TOKEN_TRAILER':
-    return u'[{}: {}]'.format(bsm_type, token.record_length)
-  elif bsm_type == 'BSM_TOKEN_FILE':
-    timestamp = token.timestamp
-    # TODO: Add microsecond...
-    # token.microsecond
-    human_timestamp = datetime.datetime.fromtimestamp(
-        timestamp).strftime('%Y-%m-%d %H:%M:%S')
-    return u'[{0}: {1}, timestamp: {2}]'.format(
-        bsm_type, _RawToUTF8(token.file_name), human_timestamp)
-  elif bsm_type == 'BSM_TOKEN_IPC':
-    return u'[{}: object type {}, object id {}]'.format(
-        bsm_type, token.object_type, token.object_id)
-  elif (bsm_type == 'BSM_TOKEN_PROCESS32' or
-      bsm_type == 'BSM_TOKEN_PROCESS64'):
-    return (u'[{}: aid({}), euid({}), egid({}), uid({}), gid({}), '
-            u'pid({}), session_id({}), terminal_port({}), '
-            u'terminal_ip({})]'.format(
-                bsm_type,
-                token.subject_data.audit_uid,
-                token.subject_data.effective_uid,
-                token.subject_data.effective_gid,
-                token.subject_data.real_uid,
-                token.subject_data.real_gid,
-                token.subject_data.pid,
-                token.subject_data.session_id,
-                token.terminal_port,
-                _IPv4Format(token.ipv4)))
-  elif (bsm_type == 'BSM_TOKEN_PROCESS32_EX' or
-      bsm_type == 'BSM_TOKEN_PROCESS64_EX'):
-    if token.bsm_ip_type_short.net_type == AU_IPv6:
-      ip = _IPv6Format(
-          token.bsm_ip_type_short.ip_addr.high,
-          token.bsm_ip_type_short.ip_addr.low)
-    elif token.bsm_ip_type_short.net_type == AU_IPv4:
-      ip = _IPv4Format(token.bsm_ip_type_short.ip_addr)
-    else:
-      ip = 'unknown'
-    return (u'[{}: aid({}), euid({}), egid({}), uid({}), gid({}), '
-            u'pid({}), session_id({}), terminal_port({}), '
-            u'terminal_ip({})]'.format(
-                bsm_type,
-                token.subject_data.audit_uid,
-                token.subject_data.effective_uid,
-                token.subject_data.effective_gid,
-                token.subject_data.real_uid,
-                token.subject_data.real_gid,
-                token.subject_data.pid,
-                token.subject_data.session_id,
-                token.terminal_port, ip))
-  elif bsm_type == 'BSM_TOKEN_DATA':
-    data = []
-    data_type = BSM_TOKEN_DATA_TYPE.get(token.data_type, '')
-    if data_type == 'AUR_CHAR':
-      for _ in range(token.unit_count):
-        data.append(BSM_TOKEN_DATA_CHAR.parse_stream(f))
-    elif data_type == 'AUR_SHORT':
-      for _ in range(token.unit_count):
-        data.append(BSM_TOKEN_DAT_SHORT.parse_stream(f))
-    elif data_type == 'AUR_INT32':
-      for _ in range(token.unit_count):
-        data.append(BSM_TOKEN_DATA_INTEGER.parse_stream(f))
-    else:
-      data.append(u'Unknown type data')
-    # TODO: the data when it is string ends with ".", HW a space is return
-    #       after uses the UTF-8 conversion.
-    return u'[{}: Format data: {}, Data: {}]'.format(
-        bsm_type,
-        BSM_TOKEN_DATA_PRINT[token.how_to_print],
-        _RawToUTF8(u''.join(data)))
-  elif (bsm_type == 'BSM_TOKEN_ATTR32' or
-      bsm_type == 'BSM_TOKEN_ATTR64'):
-    return (u'[{0}: Mode: {1}, UID: {2}, GID: {3}, '
-            u'File system ID: {4}, Node ID: {5}, Device: {6}]'.format(
-                bsm_type, token.file_mode, token.uid, token.gid,
-                token.file_system_id, token.file_system_node_id,
-                token.device))
-  elif bsm_type == 'BSM_TOKEN_GROUPS':
-    arguments = []
-    for _ in range(token):
-      arguments.append(
-          _RawToUTF8(BSM_TOKEN_DATA_INTEGER.parse_stream(
-              f)))
-    return u'[{}: {}]'.format(bsm_type, u','.join(arguments))
-  elif bsm_type == 'BSM_TOKEN_AUT_SOCKINET32_EX':
-    if BSM_PROTOCOLS.get(token.socket_domain, '') == 'INET6':
-      sadd = _Ipv6Format(
-          token.structure_addr_port.saddr_high,
-          token.structure_addr_port.saddr_low)
-      dadd = _Ipv6Format(
-          token.structure_addr_port.daddr_high,
-          token.structure_addr_port.daddr_low)
-      return u'[{}: from {} port {} to {} port {}]'.format(
-          bsm_type, sadd, token.structure_addr_port.source_port,
-          dadd, token.structure_addr_port.destination_port)
-    else:
-      return u'[{}: from {} port {} to {} port {}]'.format(
-          bsm_type,
-          _IPv4Format(token.structure_addr_port.source_address),
-          token.structure_addr_port.source_port,
-          _IPv4Format(token.structure_addr_port.destination_address),
-          token.structure_addr_port.destination_port)
-  elif bsm_type == 'BSM_TOKEN_OPAQUE':
-    return u'[{}: {}]'.format(bsm_type, token.encode('hex'))
-  elif bsm_type == 'BSM_TOKEN_SEQUENCE':
-    return u'[{}: {}]'.format(bsm_type, token)
+                _ipv4format(token.structure_addr_port.source_address),
+                token.structure_addr_port.source_port,
+                _ipv4format(token.structure_addr_port.destination_address),
+                token.structure_addr_port.destination_port)
+    elif bsm_type == 'BSM_TOKEN_OPAQUE':
+        return u'[{}: {}]'.format(bsm_type, token.encode('hex'))
+
 
 # Provide a readable IPv6 IP having the high and low part in 2 integers.
 # Args:
 # high: 64 bits integers number with the high part of the IPv6.
 # low: 64 bits integers number with the low part of the IPv6.
 # Returns: string with a well represented IPv6.
-def _IPv6Format(high, low):
-  ipv6_string = IPV6_STRUCT.build(
-      construct.Container(high=high, low=low))
-  return socket.inet_ntop(
-      socket.AF_INET6, ipv6_string)
+def _ipv6format(high, low):
+    ipv6_string = IPV6_STRUCT.build(
+        construct.Container(high=high, low=low))
+    return socket.inet_ntop(
+        socket.AF_INET6, ipv6_string)
+
 
 # Change an integer IPv4 address value for its 4 octets representation.
 # Args:
 #   address: integer with the IPv4 address.
 # Returns: IPv4 address in 4 octect representation (class A, B, C, D).
-def _IPv4Format(address):
-  ipv4_string = IPV4_STRUCT.build(address)
-  return socket.inet_ntoa(ipv4_string)
+def _ipv4format(address):
+    ipv4_string = IPV4_STRUCT.build(address)
+    return socket.inet_ntoa(ipv4_string)
+
 
 # Pyparsing reads in RAW, but the text must be in UTF8.
-def _RawToUTF8(text):
-  try:
-    text = text.decode('utf-8')
-  except UnicodeDecodeError:
-    logging.warning(
-        u'Decode UTF8 failed, the message string may be cut short.')
-    text = text.decode('utf-8', 'ignore')
-  return text.partition('\x00')[0]
+def _rawtoutf8(text):
+    try:
+        text = text.decode('utf-8')
+    except UnicodeDecodeError:
+        print(
+            u'Decode UTF8 failed, the message string may be cut short.')
+        text = text.decode('utf-8', 'ignore')
+    return text.partition('\x00')[0]
+
 
 # Read one BSM Event
 # Args:
 #   f : BSM file.
 #   token_id: header token_id.
 #   event_number: the number of the event.
-def ReadBSMEvent(f, token_id, event_number):
-  first_byte = f.tell() - 1
-  bsm_type, structure = BSM_TYPE_LIST.get(token_id, ['', ''])
-  if bsm_type == 'BSM_HEADER32':
-      token = structure.parse_stream(f)
-  elif bsm_type == 'BSM_HEADER64':
-    token = structure.parse_stream(f)
-  elif bsm_type == 'BSM_HEADER32_EX':
-    token = structure.parse_stream(f)
-  else:
-    print "[Error] At 0x{:X} header unknown.".format(f.tell())
-    exit(1)
+def readbsmevent(f, token_id, event_number):
+    first_byte = f.tell() - 1
+    bsm_type, structure = BSM_TYPE_LIST.get(token_id, ['', ''])
+    token = ''
+    if bsm_type == 'BSM_HEADER32' or bsm_type == 'BSM_HEADER64' or bsm_type == 'BSM_HEADER32_EX':
+        token = structure.parse_stream(f)
+    else:
+        print("[Error] At 0x{:X} header unknown.".format(f.tell()))
+        exit(1)
 
-  data = []
-  length = token.bsm_header.length
-  next_entry = first_byte + length
-  event_type = u'{0} ({1})'.format(
-      BSM_AUDIT_EVENT.get(token.bsm_header.event_type, 'UNKNOWN'),
-      token.bsm_header.event_type)
-  human_timestamp = datetime.datetime.fromtimestamp(
+    data = []
+    length = token.bsm_header.length
+    next_entry = first_byte + length
+    event_type = u'{0} ({1})'.format(
+        BSM_AUDIT_EVENT.get(token.bsm_header.event_type, 'UNKNOWN'),
+        token.bsm_header.event_type)
+    human_timestamp = datetime.datetime.fromtimestamp(
         token.timestamp).strftime('%Y-%m-%d %H:%M:%S')
 
-  # Read until we reach the end of the record.
-  while f.tell() < (first_byte + length):
-    # Check if it is a known token.
-    try:
-      token_id = BSM_TYPE.parse_stream(f)
-    except (IOError, construct.FieldError):
-      print (
-          u'Unable to parse the Token ID at '
-          u'position "{}"'.format(f.tell()))
-      return
-    # Unknown token id
-    if not token_id in BSM_TYPE_LIST:
-      f.seek(next_entry - f.tell(), os.SEEK_CUR)
-      print '\t[Unfinished] Event: {}.\n\tType: {}.\n\tTimestamp: {}.'.format(
-          event_number, event_type, human_timestamp)
-      for i in range(len(data)):
-        print u'\t{}'.format(data[i])
-      print ''
-      return
-    else:
-      token = BSM_TYPE_LIST[token_id][1].parse_stream(f)
-      data.append(FormatToken(token_id, token, f))
+    # Read until we reach the end of the record.
+    while f.tell() < (first_byte + length):
+        # Check if it is a known token.
+        try:
+            token_id = BSM_TYPE.parse_stream(f)
+        except (IOError, construct.FieldError):
+            print (
+                u'Unable to parse the Token ID at '
+                u'position "{}"'.format(f.tell()))
+            return
+        # Unknown token id
+        if token_id not in BSM_TYPE_LIST:
+            f.seek(next_entry - f.tell(), os.SEEK_CUR)
+            print('\t[Unfinished] Event: {}.\n\tType: {}.\n\tTimestamp: {}.'.format(
+                event_number, event_type, human_timestamp))
+            for i in range(len(data)):
+                print(u'\t{}'.format(data[i]))
+            print('')
+            return
+        else:
+            token = BSM_TYPE_LIST[token_id][1].parse_stream(f)
+            data.append(formattoken(token_id, token, f))
 
-    if f.tell() > next_entry:
-      logging.warning(
-          u'Token ID {0} not expected at position 0x{1:X}.'
-          u'Jumping to the next entry'.format(
-              token_id, f.tell()))
-      f.seek(next_entry - f.tell(), os.SEEK_CUR)
-      return
-  print '\tEvent: {}.\n\tType: {}.\n\tTimestamp: {}.'.format(
-      event_number, event_type, human_timestamp)
-  for i in range(len(data)):
-    print u'\t{}'.format(data[i])
-  print ''
+        if f.tell() > next_entry:
+            print(
+                u'Token ID {0} not expected at position 0x{1:X}.'
+                u'Jumping to the next entry'.format(
+                    token_id, f.tell()))
+            f.seek(next_entry - f.tell(), os.SEEK_CUR)
+            return
+    print('\tEvent: {}.\n\tType: {}.\n\tTimestamp: {}.'.format(
+        event_number, event_type, human_timestamp))
+    for i in range(len(data)):
+        print(u'\t{}'.format(data[i]))
+    print('')
+
 
 # Check if the file is a BSM file.
 #
 # Args:
 #   f : file that we want to check.
-def VerifyFile(f):
-  type = BSM_TYPE.parse_stream(f)
-  if (BSM_TYPE_LIST[type][0] != 'BSM_HEADER32' and
-      BSM_TYPE_LIST[type][0] != 'BSM_HEADER64' and
-      BSM_TYPE_LIST[type][0] != 'BSM_HEADER32_ex'):
-    print '[Error] It is not a BSM file, unknown header token_id.'
-    exit(1) 
-  try: 
-    header = BSM_HEADER.parse_stream(f)
-  except:
-    print '[Error] It is not a BSM file, not a header structure.'
-    exit(1)
-  if header.version != AUDIT_HEADER_VERSION:
-    print '[WARNING] BSM version {} not supported.'.format(header.version)
-  f.close()
-  
-  
+def verifyfile(f):
+    bsm_type = BSM_TYPE.parse_stream(f)
+    if (BSM_TYPE_LIST[bsm_type][0] != 'BSM_HEADER32' and BSM_TYPE_LIST[bsm_type][0] != 'BSM_HEADER64'
+            and BSM_TYPE_LIST[bsm_type][0] != 'BSM_HEADER32_ex'):
+        print('[Error] It is not a BSM file, unknown header token_id.')
+        exit(1)
+    header = ''
+    try:
+        header = BSM_HEADER.parse_stream(f)
+    except Exception as err:
+        print('[Error : {} ] It is not a BSM file, not a header structure.'.format(err))
+        exit(1)
+    if header.version != AUDIT_HEADER_VERSION:
+        print('[WARNING] BSM version {} not supported.'.format(header.version))
+    f.close()
+
 
 # Main function.
 def __init__():
-  if len(sys.argv) != 2:
-    print 'Use: python {0} BSMfile'.format(sys.argv[0])
-    exit(1)
-  log = sys.argv[1]
-  try:
-    f = open(log, 'rb')
-  except:
-    print '[Error] The file BSM does not exist'
-    exit(1)
-    
-  VerifyFile(f)
-  print '\nParsing BSM file [{}].\n'.format(log)
-
-  try:
-    f = open(log, 'rb')
-  except:
-    print '[Error] The file BSM does not exist'
-    exit(1)
-  event_number = 0
-  token_id = BSM_TYPE.parse_stream(f)
-  while token_id:
-    event_number += 1
-    ReadBSMEvent(f, token_id, event_number)
+    if len(sys.argv) != 2:
+        print('Use: python {0} BSMfile'.format(sys.argv[0]))
+        exit(1)
+    log = sys.argv[1]
+    f = ''
     try:
-      token_id = BSM_TYPE.parse_stream(f)
-    except:
-      token_id = None
-  f.close() 
-    
+        f = open(log, 'rb')
+    except Exception as err:
+        print('[Error : {} ] The file BSM does not exist'.format(err))
+        exit(1)
+
+    verifyfile(f)
+    print('\nParsing BSM file [{}].\n'.format(log))
+
+    try:
+        f = open(log, 'rb')
+    except Exception as err:
+        print('can not open file due to err: {}'.format(err))
+        exit(1)
+    event_number = 0
+    token_id = BSM_TYPE.parse_stream(f)
+    while token_id:
+        event_number += 1
+        readbsmevent(f, token_id, event_number)
+        try:
+            token_id = BSM_TYPE.parse_stream(f)
+        except Exception as err:
+            print('can not parse token_id due to: {}'.format(err))
+            token_id = None
+    f.close()
+
 
 __init__()
-
